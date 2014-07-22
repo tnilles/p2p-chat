@@ -1,0 +1,29 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+    <title>p2p chat</title>
+    <link rel="stylesheet" type="text/css" href="client/style.css">
+</head>
+<body>
+    <h1>Peer-to-peer chat</h1>
+
+    <div>
+        my id: <input type="text" id="myid" disabled />
+        add a peer:
+        <form id="add-peer-form" action="#">
+            <input type="text" id="theirid" placeholder="Their id" />
+            <input type="submit" value="add" />
+        </form>
+    </div>
+
+    <p id="chatlog"></p>
+    <form id="chat-form" action="#">
+        <input type="text" id="message" />
+        <input type="submit" value="send" />
+    </form>
+
+    <script src="vendor/jquery-1.11.1.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="client/chat.js"></script>
+</body>
+</html>
