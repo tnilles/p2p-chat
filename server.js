@@ -8,7 +8,8 @@ var express = require('express'),
 
 var dbURL = 'p2pchat',
     collections = ['messages', 'rooms'],
-    db = mongojs.connect(dbURL, collections);
+    db = mongojs.connect(dbURL, collections),
+    clients = [];
 
 // Static assets
 app.use(bodyParser.urlencoded());
@@ -40,9 +41,9 @@ app.post('/addRoomInfo', function(req, res) {
 // Usage: /getRoomInfo?room=[roomId]&key=[key]
 app.get('/getRoomInfo', function(req, res) {
     db.rooms.find({room: req.query.room}, function(err, found) {
-        if (err || !found) {
-            res.status(500);
+        if (err || !found || found.length === 0) {
             res.end();
+            return;
         }
 
         res.setHeader('Content-Type', 'application/json');
@@ -50,8 +51,18 @@ app.get('/getRoomInfo', function(req, res) {
     });
 });
 
+// Get the list of clients' names
+app.get('/getClients', function(req, res) {
+    var clientsList = [];
+    for (var i = 0, numClients = clients.length; i < numClients; i++) {
+        clientsList.push(clients[i].name);
+    }
+
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify(clientsList));
+});
+
 var updateClients = function(room, key, value) {
-    console.log('broadcasting to clients event:' + room + ':' + key);
     io.emit('roomInfoChanged:' + room + ':' + key, {room: room, type: key, data: value});
 };
 
@@ -60,12 +71,57 @@ app.get('/', function(req, res){
 });
 
 io.on('connection', function(socket){
-    console.log('a user connected');
+    console.log('a user connected', socket.client.id);
+    clients.push({name: socket.client.id, socket: socket});
+
+    socket.on('changename', function(name) {
+        // Enforce unique names
+        if (getClient(name)) {
+            socket.emit('reschangename', false);
+        } else {
+            changeName(socket.client.id, name);
+            socket.emit('reschangename', name); // Confirm that we've changed name
+        }
+    });
+
+    socket.on('invitepeer', function(data) {
+        var otherPeer = getClient(data.peer);
+        if (!otherPeer) return;
+        otherPeer.socket.emit('invitation', data.linkId);
+    });
 
     socket.on('disconnect', function(){
         console.log('user disconnected');
+        removeClient(socket.client.id);
     });
 });
+
+var getClient = function(name) {
+    for (var i = 0, n = clients.length; i < n; i++) {
+        if (clients[i].name === name) {
+            return clients[i];
+        }
+    }
+    return false;
+};
+
+var changeName = function(socketId, name) {
+    for (var i = 0, numClients = clients.length; i < numClients; i++) {
+        if (clients[i].socket.client.id === socketId) {
+            clients[i].name = name;
+            break;
+        }
+    }
+};
+
+var removeClient = function(socketId) {
+    for (var i = 0, n = clients.length; i < n; i++) {
+        if (clients[i].socket.client.id === socketId) {
+            break;
+        }
+    }
+    clients.splice(i, 1);
+};
 
 http.listen(3000, function(){
     console.log('listening on *:3000');

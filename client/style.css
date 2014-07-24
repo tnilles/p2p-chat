@@ -7,3 +7,21 @@
     height: 300px;
     overflow: scroll;
 }
+
+#clients-info {
+    height: 30px;
+    padding: 1px 0;
+}
+
+#clients-info button {
+    margin-top: 6px;
+}
+
+.add-peer {
+    padding: 5px;
+    margin-right: 5px;
+    background-color: black;
+    color: white;
+    display: inline-block;
+    cursor: pointer;
+}
