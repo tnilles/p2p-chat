@@ -145,12 +145,12 @@ var RTCNetwork = (function(socket) {
     };
 
     RTCNetwork.prototype = {
-        connectWith: function(nickname) {
+        connectWith: function(nickname, from) {
             this.linkId = id();
             type = 'offerer';
             otherType = 'answerer';
             this.setupConnection();
-            socket.emit('invitepeer', {peer: nickname, linkId: this.linkId});
+            socket.emit('invitepeer', JSON.stringify({peer: nickname, linkId: this.linkId, from: from}));
         },
         listen: function(linkId) {
             this.linkId = linkId;

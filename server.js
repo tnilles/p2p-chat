@@ -85,9 +85,10 @@ io.on('connection', function(socket){
     });
 
     socket.on('invitepeer', function(data) {
+        data = JSON.parse(data);
         var otherPeer = getClient(data.peer);
         if (!otherPeer) return;
-        otherPeer.socket.emit('invitation', data.linkId);
+        otherPeer.socket.emit('invitation', JSON.stringify({linkId: data.linkId, peername: data.from}));
     });
 
     socket.on('disconnect', function(){

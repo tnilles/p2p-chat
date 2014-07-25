@@ -1,6 +1,7 @@
 var socket = io(),
     channels = [],
-    nickname = '';
+    nickname = '',
+    peers = [];
 
 // Set up a default nickname (socket's id)
 socket.on('connect', function(){
@@ -25,23 +26,37 @@ var onMessage = function (e) {
 document.body.addEventListener('click', function(e) {
     var target = e.target;
     if (target.className.match(/add-peer/)) {
-        var connection = new RTCNetwork();
-        connection.onMessage = onMessage;
-        connection.connectWith(target.innerHTML);
-        channels.push(connection.channel);
+        var peername = target.innerHTML;
+        // Check if the peer isn't already connected
+        if (peers.indexOf(peername) === -1 && peername !== nickname) {
+            var connection = new RTCNetwork();
+            connection.onMessage = onMessage;
+            connection.connectWith(peername, nickname);
+            channels.push(connection.channel);
+            peers.push(peername);
+        } else {
+            console.log('Already connected to ', peername);
+        }
     }
 });
 
-socket.on('invitation', function(linkId) {
-    var connection = new RTCNetwork();
-    connection.onMessage = onMessage;
-    connection.listen(linkId);
+socket.on('invitation', function(data) {
+    data = JSON.parse(data);
 
-    connection.subscribeChannel(function(channel) {
-        if (channel) {
-            channels.push(channel);
-        }
-    });
+    if (peers.indexOf(data.peername) === -1) {
+        var connection = new RTCNetwork();
+        connection.onMessage = onMessage;
+        connection.listen(data.linkId);
+
+        connection.subscribeChannel(function(channel) {
+            if (channel) {
+                channels.push(channel);
+            }
+        });
+        peers.push(data.peername);
+    } else {
+        console.log('Already connected to ', data.peername);
+    }
 });
 
 // TODO: this need to be updated through a socket, not a simple get
