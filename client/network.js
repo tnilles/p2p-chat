@@ -7,9 +7,10 @@ var RTCNetwork = (function(socket) {
         IceCandidate = window.mozRTCIceCandidate || window.RTCIceCandidate;
     navigator.getUserMedia = navigator.getUserMedia || navigator.mozGetUserMedia || navigator.webkitGetUserMedia;
 
-    var type;
-    var otherType;
-    var pc;
+    var type,
+        otherType,
+        pc,
+        channelOpenedCallback = function() {};
 
     // Utilities
     // generate a unique-ish string
@@ -53,10 +54,7 @@ var RTCNetwork = (function(socket) {
             };
 
             var options = {
-                optional: [
-                    {DtlsSrtpKeyAgreement: true},
-                    {RtpDataChannels: true} //required for Firefox
-                ]
+                optional: []
             };
 
             // create the PeerConnection
@@ -115,6 +113,7 @@ var RTCNetwork = (function(socket) {
                 // answerer needs to wait for an offer before
                 // generating the answer SDP
                 recv(that.linkId, 'offer', function (offer) {
+                    if (!offer) return;
                     pc.setRemoteDescription(
                         new SessionDescription(JSON.parse(offer))
                     );
@@ -139,18 +138,27 @@ var RTCNetwork = (function(socket) {
 
         // bind the channel events
         this.bindEvents = function() {
-            this.channel.onopen = function () { console.log("Channel Open"); }
+            this.channel.onopen = function () {
+                console.log("Channel Open");
+                if (type === 'offerer') {
+                    channelOpenedCallback();
+                }
+            };
             this.channel.onmessage = this.onMessage;
         };
     };
 
     RTCNetwork.prototype = {
-        connectWith: function(nickname, from) {
+        getPeerConnection: function() {
+            return pc;
+        },
+        connectWith: function(nickname, from, callback) {
             this.linkId = id();
             type = 'offerer';
             otherType = 'answerer';
             this.setupConnection();
             socket.emit('invitepeer', JSON.stringify({peer: nickname, linkId: this.linkId, from: from}));
+            channelOpenedCallback = callback;
         },
         listen: function(linkId) {
             this.linkId = linkId;

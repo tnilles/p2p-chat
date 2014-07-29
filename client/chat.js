@@ -1,7 +1,9 @@
+'use strict';
+
 var socket = io(),
-    channels = [],
     nickname = '',
-    peers = [];
+    peers = [],
+    pcs = []; // peer connections
 
 // Set up a default nickname (socket's id)
 socket.on('connect', function(){
@@ -17,29 +19,45 @@ var chatlog = document.getElementById('chatlog'),
     clients = document.getElementById('clients');
 
 
-var onMessage = function (e) {
+var onMessage = function(e) {
     var data = JSON.parse(e.data);
     // add the message to the chat log
     chatlog.innerHTML += '<div>' + data.from + ': ' + data.message + '</div>';
 };
 
+// Invite another peer
+var invitePeer = function(peername) {
+    // Check if the peer isn't already connected
+    if (peers.indexOf(peername) === -1 && peername !== nickname) {
+        var connection = new RTCNetwork();
+        connection.onMessage = onMessage;
+        connection.connectWith(peername, nickname, function() {
+            socket.emit('checkmypeers', JSON.stringify({peers: peers, to: peername}));
+        });
+
+        pcs.push(connection);
+        peers.push(peername);
+    } else {
+        console.log('Already connected to ', peername);
+    }
+};
+
 document.body.addEventListener('click', function(e) {
     var target = e.target;
     if (target.className.match(/add-peer/)) {
-        var peername = target.innerHTML;
-        // Check if the peer isn't already connected
-        if (peers.indexOf(peername) === -1 && peername !== nickname) {
-            var connection = new RTCNetwork();
-            connection.onMessage = onMessage;
-            connection.connectWith(peername, nickname);
-            channels.push(connection.channel);
-            peers.push(peername);
-        } else {
-            console.log('Already connected to ', peername);
-        }
+        invitePeer(target.innerHTML);
     }
 });
 
+socket.on('invitepeers', function(data) {
+    data = JSON.parse(data);
+    if (!data.peers) return;
+    for (var i = 0, n = data.peers.length; i < n; i++) {
+        invitePeer(data.peers[i]);
+    }
+});
+
+// Receive another peer's invitation
 socket.on('invitation', function(data) {
     data = JSON.parse(data);
 
@@ -50,9 +68,11 @@ socket.on('invitation', function(data) {
 
         connection.subscribeChannel(function(channel) {
             if (channel) {
-                channels.push(channel);
+                pcs.push(connection);
+                socket.emit('checkmypeers', JSON.stringify({peers: peers, to: data.peername}));
             }
         });
+
         peers.push(data.peername);
     } else {
         console.log('Already connected to ', data.peername);
@@ -92,15 +112,23 @@ socket.on('reschangename', function(data) {
     }
 });
 
-// send a message the textbox throught
+// send a message the textbox through
 // the data channel for a chat program
 function sendMessage () {
     var msg = message.value;
-    channels.map(function(channel) {
-        channel.send(JSON.stringify({
-            message: msg,
-            from: nickname
-        }));
+    pcs.map(function(pc) {
+        if (pc.channel.readyState === 'open') {
+            try {
+                pc.channel.send(JSON.stringify({
+                    message: msg,
+                    from: nickname
+                }));
+            } catch (error) {
+                console.log('couldn\'t send message: ', error);
+            }
+        } else {
+            console.log('couldn\'t send message to this unopen channel: ', pc.channel);
+        }
     });
     message.value = '';
 }

@@ -91,6 +91,12 @@ io.on('connection', function(socket){
         otherPeer.socket.emit('invitation', JSON.stringify({linkId: data.linkId, peername: data.from}));
     });
 
+    socket.on('checkmypeers', function(data) {
+        data = JSON.parse(data);
+        var otherPeer = getClient(data.to);
+        otherPeer && otherPeer.socket.emit('invitepeers', JSON.stringify({peers: data.peers}));
+    });
+
     socket.on('disconnect', function(){
         console.log('user disconnected');
         removeClient(socket.client.id);
