@@ -3,7 +3,7 @@
 var socket = io(),
     nickname = '',
     peers = [],
-    pcs = []; // peer connections
+    pcs = []; // peer connections pcs[i] = {peername, conn}
 
 // Set up a default nickname (socket's id)
 socket.on('connect', function(){
@@ -16,13 +16,18 @@ var chatlog = document.getElementById('chatlog'),
     chatform = document.getElementById('chat-form'),
     changenameform = document.getElementById('change-name-form'),
     nameinput = document.getElementById('name'),
-    clients = document.getElementById('clients');
+    clients = document.getElementById('clients'),
+    banform = document.getElementById('ban-form'),
+    banpeername = document.getElementById('banpeername');
 
+var addMessage = function(from, msg) {
+    chatlog.innerHTML += '<div>' + from + ': ' + msg + '</div>';
+};
 
 var onMessage = function(e) {
     var data = JSON.parse(e.data);
     // add the message to the chat log
-    chatlog.innerHTML += '<div>' + data.from + ': ' + data.message + '</div>';
+    addMessage(data.from, data.message);
 };
 
 // Invite another peer
@@ -35,7 +40,7 @@ var invitePeer = function(peername) {
             socket.emit('checkmypeers', JSON.stringify({peers: peers, to: peername}));
         });
 
-        pcs.push(connection);
+        pcs.push({conn: connection, peername: peername});
         peers.push(peername);
     } else {
         console.log('Already connected to ', peername);
@@ -68,7 +73,7 @@ socket.on('invitation', function(data) {
 
         connection.subscribeChannel(function(channel) {
             if (channel) {
-                pcs.push(connection);
+                pcs.push({conn: connection, peername: data.peername});
                 socket.emit('checkmypeers', JSON.stringify({peers: peers, to: data.peername}));
             }
         });
@@ -104,6 +109,11 @@ changenameform.addEventListener('submit', function(e) {
     socket.emit('changename', nameinput.value);
 });
 
+banform.addEventListener('submit', function(e) {
+    e.preventDefault();
+    $.post('ban', {peername: banpeername.value});
+});
+
 // Remove peer from our peer list if he's not connected anymore
 // TODO: Remove the peerConnection too
 socket.on('peerdisconnected', function(data) {
@@ -111,6 +121,11 @@ socket.on('peerdisconnected', function(data) {
     var index = peers.indexOf(data.peername);
     if (index === -1) return;
     peers.splice(index, 1);
+    removePc(data.peername);
+});
+
+socket.on('banned', function(data) {
+    addMessage('server', 'You\'ve been banned');
 });
 
 socket.on('reschangename', function(data) {
@@ -121,14 +136,23 @@ socket.on('reschangename', function(data) {
     }
 });
 
+var removePc = function(peername) {
+    for (var i = 0, n = pcs.length; i < n; i++) {
+        if (pcs[i].peername === peername) break;
+    }
+    if (pcs[i].peername !== peername) return;
+    pcs[i].conn.channel.close();
+    pcs.splice(i, 1);
+};
+
 // send a message the textbox through
 // the data channel for a chat program
 function sendMessage () {
     var msg = message.value;
     pcs.map(function(pc) {
-        if (pc.channel.readyState === 'open') {
+        if (pc.conn.channel.readyState === 'open') {
             try {
-                pc.channel.send(JSON.stringify({
+                pc.conn.channel.send(JSON.stringify({
                     message: msg,
                     from: nickname
                 }));
@@ -136,7 +160,7 @@ function sendMessage () {
                 console.log('couldn\'t send message: ', error);
             }
         } else {
-            console.log('couldn\'t send message to this unopen channel: ', pc.channel);
+            console.log('couldn\'t send message to this unopen channel: ', pc.conn.channel);
         }
     });
     message.value = '';

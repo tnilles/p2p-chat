@@ -25,3 +25,7 @@
     display: inline-block;
     cursor: pointer;
 }
+
+#ban-form {
+    display: inline-block;
+}

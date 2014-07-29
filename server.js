@@ -18,7 +18,7 @@ app.use('/client', express.static(path.join(__dirname, 'client')));
 app.use('/vendor', express.static(path.join(__dirname, 'vendor')));
 
 
-// Usage: /getRoomInfo?room=[roomId]&key=[key]&value=[value]
+// Usage: /addRoomInfo + params: room=[roomId] key=[key] value=[value]
 app.post('/addRoomInfo', function(req, res) {
     var pair = {};
     pair[req.body.key] = req.body.value;
@@ -60,6 +60,12 @@ app.get('/getClients', function(req, res) {
 
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify(clientsList));
+});
+
+app.post('/ban', function(req, res) {
+    console.log('banning ', req.body.peername);
+    var toBan = getClient(req.body.peername);
+    toBan && removeClient(toBan.socket.client.id);
 });
 
 var updateClients = function(room, key, value) {
@@ -127,7 +133,9 @@ var removeClient = function(socketId) {
             break;
         }
     }
+    if (!clients[i] || clients[i].socket.client.id !== socketId) return;
     // Tell other peers that one disconnected
+    clients[i].socket.emit('banned', '');
     clients[i].socket.broadcast.emit('peerdisconnected', JSON.stringify({peername: clients[i].name}));
     clients.splice(i, 1);
 };
