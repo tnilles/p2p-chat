@@ -104,6 +104,15 @@ changenameform.addEventListener('submit', function(e) {
     socket.emit('changename', nameinput.value);
 });
 
+// Remove peer from our peer list if he's not connected anymore
+// TODO: Remove the peerConnection too
+socket.on('peerdisconnected', function(data) {
+    data = JSON.parse(data);
+    var index = peers.indexOf(data.peername);
+    if (index === -1) return;
+    peers.splice(index, 1);
+});
+
 socket.on('reschangename', function(data) {
     if (data) {
         nickname = data;

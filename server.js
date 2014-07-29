@@ -127,6 +127,8 @@ var removeClient = function(socketId) {
             break;
         }
     }
+    // Tell other peers that one disconnected
+    clients[i].socket.broadcast.emit('peerdisconnected', JSON.stringify({peername: clients[i].name}));
     clients.splice(i, 1);
 };
 
