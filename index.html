@@ -29,11 +29,17 @@
     <form id="chat-form" action="#">
         <input type="text" id="message" />
         <input type="submit" value="send" />
+        <p>
+            Send a file
+            <input type="file" />
+        </p>
+        <p id="receive-file"></p>
     </form>
 
     <script src="vendor/jquery-1.11.1.js"></script>
     <script src="/socket.io/socket.io.js"></script>
     <script src="client/chat.js"></script>
+    <script src="client/file-transfer.js"></script>
     <script src="client/network.js"></script>
 </body>
 </html>

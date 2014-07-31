@@ -3,7 +3,10 @@
 var socket = io(),
     nickname = '',
     peers = [],
-    pcs = []; // peer connections pcs[i] = {peername, conn}
+    pcs = [], // peer connections pcs[i] = {peername, conn}
+    chunks = [], // file-transfer chunks
+    filesize,
+    filename;
 
 // Set up a default nickname (socket's id)
 socket.on('connect', function(){
@@ -18,7 +21,8 @@ var chatlog = document.getElementById('chatlog'),
     nameinput = document.getElementById('name'),
     clients = document.getElementById('clients'),
     banform = document.getElementById('ban-form'),
-    banpeername = document.getElementById('banpeername');
+    banpeername = document.getElementById('banpeername'),
+    receivefile = document.getElementById('receive-file');
 
 var addMessage = function(from, msg) {
     chatlog.innerHTML += '<div>' + from + ': ' + msg + '</div>';
@@ -26,8 +30,32 @@ var addMessage = function(from, msg) {
 
 var onMessage = function(e) {
     var data = JSON.parse(e.data);
-    // add the message to the chat log
-    addMessage(data.from, data.message);
+    switch (data.type) {
+        case 'text':
+            // add the message to the chat log
+            addMessage(data.from, data.message);
+        break;
+
+        // TODO: allow multiple file transfers
+        case 'file':
+            if (data.data.filesize) filesize = data.data.filesize;
+            if (data.data.filename) filename = data.data.filename;
+            updateFileLoading((chunks.length * 1000 * 100) / filesize);
+            chunks.push(data.data.message);
+
+            if (data.data.last) {
+                saveToDisk(chunks.join(''), filename);
+                chunks = [];
+                filesize = 0;
+                updateFileLoading(100);
+            }
+        break;
+    }
+};
+
+var updateFileLoading = function(pct) {
+    receivefile.innerHTML = 'downloading a file... (' + (+parseFloat(pct).toFixed(2)) + '%)';
+    if (pct === 100) receivefile.innerHTML = '';
 };
 
 // Invite another peer
@@ -99,6 +127,7 @@ var getClients = function() {
     });
 };
 
+// Event Listeners
 chatform.addEventListener('submit', function(e) {
     e.preventDefault();
     sendMessage();
@@ -114,8 +143,17 @@ banform.addEventListener('submit', function(e) {
     $.post('ban', {peername: banpeername.value});
 });
 
+document.querySelector('#chat-form input[type=file]').onchange = function() {
+    var sendFile = this.files[0],
+        reader = new window.FileReader();
+
+    reader.readAsDataURL(sendFile);
+    reader.onload = function(event) {
+        onReadAsDataURL(event, undefined, sendFile.name, pcs);
+    };
+};
+
 // Remove peer from our peer list if he's not connected anymore
-// TODO: Remove the peerConnection too
 socket.on('peerdisconnected', function(data) {
     data = JSON.parse(data);
     var index = peers.indexOf(data.peername);
@@ -154,7 +192,8 @@ function sendMessage () {
             try {
                 pc.conn.channel.send(JSON.stringify({
                     message: msg,
-                    from: nickname
+                    from: nickname,
+                    type: 'text'
                 }));
             } catch (error) {
                 console.log('couldn\'t send message: ', error);
