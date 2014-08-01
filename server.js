@@ -62,6 +62,7 @@ app.get('/getClients', function(req, res) {
     res.end(JSON.stringify(clientsList));
 });
 
+// Ban a peer
 app.post('/ban', function(req, res) {
     console.log('banning ', req.body.peername);
     var toBan = getClient(req.body.peername);

@@ -2,17 +2,17 @@
 
 var socket = io(),
     nickname = '',
-    peers = [],
-    pcs = [], // peer connections pcs[i] = {peername, conn}
+    peers = [], // collection of peernames TODO: use pcs instead
+    pcs = [], // peer connections pcs[i] = {peername: 'my peer name', conn: <my RTCPeerConnection>}
     files = [],
-    chunkLength = 1000;
+    chunkLength = 1000; // Chunk length for file transfer
 
 // Set up a default nickname (socket's id)
 socket.on('connect', function(){
     nickname = nickname || socket.io.engine.id;
 });
 
-// get references to the document tags
+// Get references to the dom
 var chatlog = document.getElementById('chatlog'),
     message = document.getElementById('message'),
     chatform = document.getElementById('chat-form'),
@@ -41,7 +41,7 @@ var addVideo = function(from, src, fileId) {
         send({ id: fileId, command: 'pause', type: 'video-control' });
     });
     video.addEventListener('seeking', function(e) {
-        // Send seeking order only when it comes from user interaction
+        // Make sure that we don't send seeking order back to the peer
         var file = getFile(fileId);
         if (file.lastSeeking !== e.target.currentTime) {
             file.lastSeeking = -1;
@@ -50,6 +50,7 @@ var addVideo = function(from, src, fileId) {
     });
 };
 
+// Files utilities
 var getFile = function(id) {
     for (var i = 0, n = files.length; i < n; i++) {
         if (files[i].id === id) {
@@ -69,9 +70,11 @@ var removeFile = function(id) {
     return false;
 };
 
+// All datachannel messages goes in here
 var onMessage = function(e) {
     var data = JSON.parse(e.data),
         file;
+
     switch (data.type) {
         case 'text':
             // add the message to the chat log
@@ -94,6 +97,7 @@ var onMessage = function(e) {
 
             file = getFile(data.data.fileId);
 
+            // Refresh the % in the UI
             updateFileLoading((file.numReceivedChunks * 1000 * 100) / file.size);
 
             // Store the chunk
@@ -146,6 +150,7 @@ var invitePeer = function(peername) {
         var connection = new RTCNetwork();
         connection.onMessage = onMessage;
         connection.connectWith(peername, nickname, function() {
+            // Tell the other peer which peers we're connected to, so he can invite them too
             socket.emit('checkmypeers', JSON.stringify({peers: peers, to: peername}));
         });
 
@@ -158,11 +163,12 @@ var invitePeer = function(peername) {
 
 document.body.addEventListener('click', function(e) {
     var target = e.target;
-    if (target.className.match(/add-peer/)) {
+    if (target.className.match(/add-peer/)) { // Matches the add peer button
         invitePeer(target.innerHTML);
     }
 });
 
+// Server tells us to invite those peers
 socket.on('invitepeers', function(data) {
     data = JSON.parse(data);
     if (!data.peers) return;
@@ -175,6 +181,7 @@ socket.on('invitepeers', function(data) {
 socket.on('invitation', function(data) {
     data = JSON.parse(data);
 
+    // Make sure we're not sending an invitation to ourselves
     if (peers.indexOf(data.peername) === -1) {
         var connection = new RTCNetwork();
         connection.onMessage = onMessage;
@@ -183,6 +190,7 @@ socket.on('invitation', function(data) {
         connection.subscribeChannel(function(channel) {
             if (channel) {
                 pcs.push({conn: connection, peername: data.peername});
+                // Tell the other peer which peers we're connected to, so he can invite them too
                 socket.emit('checkmypeers', JSON.stringify({peers: peers, to: data.peername}));
             }
         });
@@ -194,6 +202,7 @@ socket.on('invitation', function(data) {
 });
 
 // TODO: this need to be updated through a socket, not a simple get
+// Get the list of peernames connected and show them in the UI
 var getClients = function() {
     $.get('getClients', {}, function(clientsList) {
         clients.innerHTML = '';
@@ -224,6 +233,7 @@ banform.addEventListener('submit', function(e) {
     $.post('ban', {peername: banpeername.value});
 });
 
+// Send a file when the file input changes
 document.querySelector('#chat-form input[type=file]').onchange = function() {
     var sendFile = this.files[0],
         reader = new window.FileReader(),
@@ -249,10 +259,12 @@ socket.on('peerdisconnected', function(data) {
     removePc(data.peername);
 });
 
+// Tell the user he has been banned
 socket.on('banned', function(data) {
     addMessage('server', 'You\'ve been banned');
 });
 
+// Wait for server answer to change nickname
 socket.on('reschangename', function(data) {
     if (data) {
         nickname = data;
@@ -270,8 +282,7 @@ var removePc = function(peername) {
     pcs.splice(i, 1);
 };
 
-// send a message the textbox through
-// the data channel for a chat program
+// Send a text message
 var sendMessage = function() {
     var msg = message.value;
     send({
@@ -283,6 +294,7 @@ var sendMessage = function() {
     message.value = '';
 };
 
+// Generic data send to all connected peers
 var send = function(toSend) {
     pcs.map(function(pc) {
         if (pc.conn.channel.readyState === 'open') {

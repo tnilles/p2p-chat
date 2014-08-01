@@ -1,7 +1,9 @@
+'use strict';
+
 var onReadAsDataURL = function(event, fileId, from, text, filename, filetype, pcs, part) {
     var data = {}; // data object to transmit over data channel
 
-    if (event) { // on first invocation
+    if (event) { // on first invocation, transmit all the file information
         part = 0;
         text = event.target.result;
         data.filesize = text.length;
@@ -16,7 +18,7 @@ var onReadAsDataURL = function(event, fileId, from, text, filename, filetype, pc
         data.message = text;
     }
 
-    data.part = part;
+    data.part = part; // Add a number to each file part, so that it can be reassembled in order on the other end
     data.from = from;
     data.fileId = fileId;
 
@@ -41,6 +43,7 @@ var onReadAsDataURL = function(event, fileId, from, text, filename, filetype, pc
     }, 0);
 };
 
+// Opens the save dialog
 var saveToDisk = function(fileUrl, fileName) {
     var save = document.createElement('a');
     save.href = fileUrl;
