@@ -84,6 +84,8 @@ var onMessage = function(e) {
             if (file.numReceivedChunks === Math.ceil(file.size / chunkLength)) {
                 if (file.type.match(/image\/.+/)) { // file is an image, show it in the chat
                     addMessage(file.from, '<img src="' + file.chunks.join('') + '" />');
+                } else if (file.type.match(/video\/.+/)) { // file is a video, show it in the chat
+                    addMessage(file.from, '<video src="' + file.chunks.join('') + '" controls></video>');
                 } else { // other types: save to disk
                     saveToDisk(file.chunks.join(''), file.name);
                 }
@@ -195,6 +197,8 @@ document.querySelector('#chat-form input[type=file]').onchange = function() {
     reader.onload = function(event) {
         if (sendFile.type.match(/image\/.+/)) { // file is an image, show it in the chat
             addMessage('me', '<img src="' + event.target.result + '" />');
+        } else if (sendFile.type.match(/video\/.+/)) { // file is a video, show it in the chat
+            addMessage('me', '<video src="' + event.target.result + '" controls></video>');
         }
         onReadAsDataURL(event, fileId, nickname, undefined, sendFile.name, sendFile.type, pcs);
     };

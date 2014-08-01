@@ -8,7 +8,8 @@
     overflow: scroll;
 }
 
-#chatlog img {
+#chatlog img,
+#chatlog video {
     max-width: 80%;
     max-height: 80%;
 }
