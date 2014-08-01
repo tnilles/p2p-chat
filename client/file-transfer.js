@@ -1,4 +1,4 @@
-var onReadAsDataURL = function(event, text, filename, pcs, part) {
+var onReadAsDataURL = function(event, from, text, filename, filetype, pcs, part) {
     var data = {}; // data object to transmit over data channel
 
     if (event) { // on first invocation
@@ -6,6 +6,7 @@ var onReadAsDataURL = function(event, text, filename, pcs, part) {
         text = event.target.result;
         data.filesize = text.length;
         data.filename = filename;
+        data.filetype = filetype;
     }
 
     if (text.length > file.chunkLength) {
@@ -16,6 +17,7 @@ var onReadAsDataURL = function(event, text, filename, pcs, part) {
     }
 
     data.part = part;
+    data.from = from;
 
     pcs.map(function(pc) {
         if (pc.conn.channel.readyState === 'open') {
@@ -34,7 +36,7 @@ var onReadAsDataURL = function(event, text, filename, pcs, part) {
 
     var remainingDataURL = text.slice(data.message.length);
     if (remainingDataURL.length) setTimeout(function () {
-        onReadAsDataURL(null, remainingDataURL, undefined, pcs, part + 1); // continue transmitting
+        onReadAsDataURL(null, from, remainingDataURL, undefined, undefined, pcs, part + 1); // continue transmitting
     }, 0);
 };
 

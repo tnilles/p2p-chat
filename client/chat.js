@@ -9,7 +9,9 @@ var socket = io(),
         numReceivedChunks: 0,
         chunkLength: 1000,
         size: 0,
-        name: ''
+        name: '',
+        type: '',
+        from: ''
     };
 
 // Set up a default nickname (socket's id)
@@ -29,7 +31,7 @@ var chatlog = document.getElementById('chatlog'),
     receivefile = document.getElementById('receive-file');
 
 var addMessage = function(from, msg) {
-    chatlog.innerHTML += '<div>' + from + ': ' + msg + '</div>';
+    chatlog.innerHTML += '<div><span class="author">' + from + '</span> <span class="message">' + msg + '</span></div>';
 };
 
 var onMessage = function(e) {
@@ -42,17 +44,31 @@ var onMessage = function(e) {
 
         // TODO: allow multiple file transfers
         case 'file':
-            if (data.data.filesize) file.size = data.data.filesize;
-            if (data.data.filename) file.name = data.data.filename;
+            // First chunk: define file type, size and name
+            data.data.filetype && (file.type = data.data.filetype);
+            data.data.filesize && (file.size = data.data.filesize);
+            data.data.filename && (file.name = data.data.filename);
+            data.data.from && (file.from = data.data.from);
+
             updateFileLoading((file.numReceivedChunks * 1000 * 100) / file.size);
+
+            // Store the chunk
             file.chunks[data.data.part] = data.data.message;
             file.numReceivedChunks++;
 
+            // Last chunk received
             if (file.numReceivedChunks === Math.ceil(file.size / file.chunkLength)) {
-                saveToDisk(file.chunks.join(''), file.name);
+                if (file.type.match(/image\/.+/)) { // file is an image, show it in the chat
+                    addMessage(file.from, '<img src="' + file.chunks.join('') + '" />');
+                } else { // other types: save to disk
+                    saveToDisk(file.chunks.join(''), file.name);
+                }
+
+                // Reset file settings
                 file.chunks = [];
                 file.size = 0;
                 file.name = '';
+                file.from = '';
                 file.numReceivedChunks = 0;
                 updateFileLoading(100);
             }
@@ -156,7 +172,8 @@ document.querySelector('#chat-form input[type=file]').onchange = function() {
 
     reader.readAsDataURL(sendFile);
     reader.onload = function(event) {
-        onReadAsDataURL(event, undefined, sendFile.name, pcs);
+        addMessage('me', '<img src="' + event.target.result + '" />');
+        onReadAsDataURL(event, nickname, undefined, sendFile.name, sendFile.type, pcs);
     };
 };
 

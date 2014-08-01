@@ -8,6 +8,22 @@
     overflow: scroll;
 }
 
+#chatlog img {
+    max-width: 80%;
+    max-height: 80%;
+}
+
+.author {
+    vertical-align: top;
+    font-weight: bold;
+}
+
+.author:after {
+    content: ': ';
+    vertical-align: top;
+    font-weight: bold;
+}
+
 #clients-info {
     height: 30px;
     padding: 1px 0;
