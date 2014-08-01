@@ -1,4 +1,4 @@
-var onReadAsDataURL = function(event, from, text, filename, filetype, pcs, part) {
+var onReadAsDataURL = function(event, fileId, from, text, filename, filetype, pcs, part) {
     var data = {}; // data object to transmit over data channel
 
     if (event) { // on first invocation
@@ -7,17 +7,18 @@ var onReadAsDataURL = function(event, from, text, filename, filetype, pcs, part)
         data.filesize = text.length;
         data.filename = filename;
         data.filetype = filetype;
+        data.firstChunk = true;
     }
 
-    if (text.length > file.chunkLength) {
-        data.message = text.slice(0, file.chunkLength);
+    if (text.length > chunkLength) {
+        data.message = text.slice(0, chunkLength);
     } else { // on last invocation
         data.message = text;
-        data.last = true;
     }
 
     data.part = part;
     data.from = from;
+    data.fileId = fileId;
 
     pcs.map(function(pc) {
         if (pc.conn.channel.readyState === 'open') {
@@ -36,7 +37,7 @@ var onReadAsDataURL = function(event, from, text, filename, filetype, pcs, part)
 
     var remainingDataURL = text.slice(data.message.length);
     if (remainingDataURL.length) setTimeout(function () {
-        onReadAsDataURL(null, from, remainingDataURL, undefined, undefined, pcs, part + 1); // continue transmitting
+        onReadAsDataURL(null, fileId, from, remainingDataURL, undefined, undefined, pcs, part + 1); // continue transmitting
     }, 0);
 };
 

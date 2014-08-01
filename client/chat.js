@@ -4,15 +4,8 @@ var socket = io(),
     nickname = '',
     peers = [],
     pcs = [], // peer connections pcs[i] = {peername, conn}
-    file = {
-        chunks: [], // file-transfer chunks
-        numReceivedChunks: 0,
-        chunkLength: 1000,
-        size: 0,
-        name: '',
-        type: '',
-        from: ''
-    };
+    files = [],
+    chunkLength = 1000;
 
 // Set up a default nickname (socket's id)
 socket.on('connect', function(){
@@ -30,25 +23,56 @@ var chatlog = document.getElementById('chatlog'),
     banpeername = document.getElementById('banpeername'),
     receivefile = document.getElementById('receive-file');
 
+// generate a unique-ish string
+var id = function() { return (Math.random() * 10000 + 10000 | 0).toString(); };
+
 var addMessage = function(from, msg) {
     chatlog.innerHTML += '<div><span class="author">' + from + '</span> <span class="message">' + msg + '</span></div>';
 };
 
+var getFile = function(id) {
+    for (var i = 0, n = files.length; i < n; i++) {
+        if (files[i].id === id) {
+            return files[i];
+        }
+    }
+    return false;
+};
+
+var removeFile = function(id) {
+    for (var i = 0, n = files.length; i < n; i++) {
+        if (files[i].id === id) {
+            files.splice(i, 1);
+            break;
+        }
+    }
+    return false;
+};
+
 var onMessage = function(e) {
-    var data = JSON.parse(e.data);
+    var data = JSON.parse(e.data),
+        file;
     switch (data.type) {
         case 'text':
             // add the message to the chat log
             addMessage(data.from, data.message);
         break;
 
-        // TODO: allow multiple file transfers
         case 'file':
             // First chunk: define file type, size and name
-            data.data.filetype && (file.type = data.data.filetype);
-            data.data.filesize && (file.size = data.data.filesize);
-            data.data.filename && (file.name = data.data.filename);
-            data.data.from && (file.from = data.data.from);
+            if (data.data.firstChunk) {
+                files.push({
+                    id: data.data.fileId,
+                    chunks: [], // file-transfer chunks
+                    numReceivedChunks: 0,
+                    size: data.data.filesize,
+                    name: data.data.filename,
+                    type: data.data.filetype,
+                    from: data.data.from
+                });
+            }
+
+            file = getFile(data.data.fileId);
 
             updateFileLoading((file.numReceivedChunks * 1000 * 100) / file.size);
 
@@ -57,7 +81,7 @@ var onMessage = function(e) {
             file.numReceivedChunks++;
 
             // Last chunk received
-            if (file.numReceivedChunks === Math.ceil(file.size / file.chunkLength)) {
+            if (file.numReceivedChunks === Math.ceil(file.size / chunkLength)) {
                 if (file.type.match(/image\/.+/)) { // file is an image, show it in the chat
                     addMessage(file.from, '<img src="' + file.chunks.join('') + '" />');
                 } else { // other types: save to disk
@@ -65,11 +89,7 @@ var onMessage = function(e) {
                 }
 
                 // Reset file settings
-                file.chunks = [];
-                file.size = 0;
-                file.name = '';
-                file.from = '';
-                file.numReceivedChunks = 0;
+                removeFile(file.id);
                 updateFileLoading(100);
             }
         break;
@@ -168,12 +188,15 @@ banform.addEventListener('submit', function(e) {
 
 document.querySelector('#chat-form input[type=file]').onchange = function() {
     var sendFile = this.files[0],
-        reader = new window.FileReader();
+        reader = new window.FileReader(),
+        fileId = id();
 
     reader.readAsDataURL(sendFile);
     reader.onload = function(event) {
-        addMessage('me', '<img src="' + event.target.result + '" />');
-        onReadAsDataURL(event, nickname, undefined, sendFile.name, sendFile.type, pcs);
+        if (sendFile.type.match(/image\/.+/)) { // file is an image, show it in the chat
+            addMessage('me', '<img src="' + event.target.result + '" />');
+        }
+        onReadAsDataURL(event, fileId, nickname, undefined, sendFile.name, sendFile.type, pcs);
     };
 };
 
