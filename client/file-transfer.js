@@ -1,19 +1,21 @@
-var onReadAsDataURL = function(event, text, filename, pcs) {
-    var data = {}, // data object to transmit over data channel
-        chunkLength = 1000;
+var onReadAsDataURL = function(event, text, filename, pcs, part) {
+    var data = {}; // data object to transmit over data channel
 
     if (event) { // on first invocation
+        part = 0;
         text = event.target.result;
         data.filesize = text.length;
         data.filename = filename;
     }
 
-    if (text.length > chunkLength) {
-        data.message = text.slice(0, chunkLength);
+    if (text.length > file.chunkLength) {
+        data.message = text.slice(0, file.chunkLength);
     } else { // on last invocation
         data.message = text;
         data.last = true;
     }
+
+    data.part = part;
 
     pcs.map(function(pc) {
         if (pc.conn.channel.readyState === 'open') {
@@ -32,8 +34,8 @@ var onReadAsDataURL = function(event, text, filename, pcs) {
 
     var remainingDataURL = text.slice(data.message.length);
     if (remainingDataURL.length) setTimeout(function () {
-        onReadAsDataURL(null, remainingDataURL, undefined, pcs); // continue transmitting
-    }, 500)
+        onReadAsDataURL(null, remainingDataURL, undefined, pcs, part + 1); // continue transmitting
+    }, 0);
 };
 
 var saveToDisk = function(fileUrl, fileName) {

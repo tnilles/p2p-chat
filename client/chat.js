@@ -4,9 +4,13 @@ var socket = io(),
     nickname = '',
     peers = [],
     pcs = [], // peer connections pcs[i] = {peername, conn}
-    chunks = [], // file-transfer chunks
-    filesize,
-    filename;
+    file = {
+        chunks: [], // file-transfer chunks
+        numReceivedChunks: 0,
+        chunkLength: 1000,
+        size: 0,
+        name: ''
+    };
 
 // Set up a default nickname (socket's id)
 socket.on('connect', function(){
@@ -38,15 +42,18 @@ var onMessage = function(e) {
 
         // TODO: allow multiple file transfers
         case 'file':
-            if (data.data.filesize) filesize = data.data.filesize;
-            if (data.data.filename) filename = data.data.filename;
-            updateFileLoading((chunks.length * 1000 * 100) / filesize);
-            chunks.push(data.data.message);
+            if (data.data.filesize) file.size = data.data.filesize;
+            if (data.data.filename) file.name = data.data.filename;
+            updateFileLoading((file.numReceivedChunks * 1000 * 100) / file.size);
+            file.chunks[data.data.part] = data.data.message;
+            file.numReceivedChunks++;
 
-            if (data.data.last) {
-                saveToDisk(chunks.join(''), filename);
-                chunks = [];
-                filesize = 0;
+            if (file.numReceivedChunks === Math.ceil(file.size / file.chunkLength)) {
+                saveToDisk(file.chunks.join(''), file.name);
+                file.chunks = [];
+                file.size = 0;
+                file.name = '';
+                file.numReceivedChunks = 0;
                 updateFileLoading(100);
             }
         break;
