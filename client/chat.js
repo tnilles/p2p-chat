@@ -209,5 +209,6 @@ function sendMessage () {
             console.log('couldn\'t send message to this unopen channel: ', pc.conn.channel);
         }
     });
+    addMessage('me', msg);
     message.value = '';
 }
