@@ -27,7 +27,27 @@ var chatlog = document.getElementById('chatlog'),
 var id = function() { return (Math.random() * 10000 + 10000 | 0).toString(); };
 
 var addMessage = function(from, msg) {
+    // TODO: appendChild instead of innerHTML, in order to prevent the whole dom to reload
     chatlog.innerHTML += '<div><span class="author">' + from + '</span> <span class="message">' + msg + '</span></div>';
+};
+
+var addVideo = function(from, src, fileId) {
+    addMessage(from, '<video src="' + src + '" id="' + fileId + '" controls></video>');
+    var video = document.getElementById(fileId);
+    video.addEventListener('play', function() {
+        send({ id: fileId, command: 'play', type: 'video-control' });
+    });
+    video.addEventListener('pause', function() {
+        send({ id: fileId, command: 'pause', type: 'video-control' });
+    });
+    video.addEventListener('seeking', function(e) {
+        // Send seeking order only when it comes from user interaction
+        var file = getFile(fileId);
+        if (file.lastSeeking !== e.target.currentTime) {
+            file.lastSeeking = -1;
+            send({ id: fileId, command: 'seekTo', type: 'video-control', time: e.target.currentTime });
+        }
+    });
 };
 
 var getFile = function(id) {
@@ -85,19 +105,35 @@ var onMessage = function(e) {
                 if (file.type.match(/image\/.+/)) { // file is an image, show it in the chat
                     addMessage(file.from, '<img src="' + file.chunks.join('') + '" />');
                 } else if (file.type.match(/video\/.+/)) { // file is a video, show it in the chat
-                    addMessage(file.from, '<video src="' + file.chunks.join('') + '" controls></video>');
+                    addVideo(file.from, file.chunks.join(''), file.id);
                 } else { // other types: save to disk
                     saveToDisk(file.chunks.join(''), file.name);
                 }
 
-                // Reset file settings
-                removeFile(file.id);
                 updateFileLoading(100);
+            }
+        break;
+
+        case 'video-control':
+            switch(data.command) {
+                case 'play':
+                    document.getElementById(data.id).play();
+                break;
+
+                case 'pause':
+                    document.getElementById(data.id).pause();
+                break;
+
+                case 'seekTo':
+                    document.getElementById(data.id).currentTime = data.time;
+                    getFile(data.id).lastSeeking = data.time;
+                break;
             }
         break;
     }
 };
 
+// TODO: Handle multiple files
 var updateFileLoading = function(pct) {
     receivefile.innerHTML = 'downloading a file... (' + (+parseFloat(pct).toFixed(2)) + '%)';
     if (pct === 100) receivefile.innerHTML = '';
@@ -198,7 +234,7 @@ document.querySelector('#chat-form input[type=file]').onchange = function() {
         if (sendFile.type.match(/image\/.+/)) { // file is an image, show it in the chat
             addMessage('me', '<img src="' + event.target.result + '" />');
         } else if (sendFile.type.match(/video\/.+/)) { // file is a video, show it in the chat
-            addMessage('me', '<video src="' + event.target.result + '" controls></video>');
+            addVideo('me', event.target.result, fileId);
         }
         onReadAsDataURL(event, fileId, nickname, undefined, sendFile.name, sendFile.type, pcs);
     };
@@ -236,16 +272,22 @@ var removePc = function(peername) {
 
 // send a message the textbox through
 // the data channel for a chat program
-function sendMessage () {
+var sendMessage = function() {
     var msg = message.value;
+    send({
+        message: msg,
+        from: nickname,
+        type: 'text'
+    });
+    addMessage('me', msg);
+    message.value = '';
+};
+
+var send = function(toSend) {
     pcs.map(function(pc) {
         if (pc.conn.channel.readyState === 'open') {
             try {
-                pc.conn.channel.send(JSON.stringify({
-                    message: msg,
-                    from: nickname,
-                    type: 'text'
-                }));
+                pc.conn.channel.send(JSON.stringify(toSend));
             } catch (error) {
                 console.log('couldn\'t send message: ', error);
             }
@@ -253,6 +295,4 @@ function sendMessage () {
             console.log('couldn\'t send message to this unopen channel: ', pc.conn.channel);
         }
     });
-    addMessage('me', msg);
-    message.value = '';
-}
+};
